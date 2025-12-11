@@ -12,288 +12,328 @@ Kotlin + Gradle로 구현한 **COVID-19 트위터 데이터 분석 과제 (Assig
 
 ---
 
-## 1. 프로젝트 구조
+## 1. 프로젝트 개요
+
+이 프로젝트의 목표는 다음과 같습니다.
+
+- 과제에서 제공한 **수많은 CSV 파일**을 한 번에 읽어들여,
+- **국가별 / 월별 / 해시태그 / 감성 점수** 단위로 COVID-19 관련 트윗을 분석하고,
+- 이후 **엑셀/파이썬에서 바로 그래프를 그릴 수 있는 형태의 CSV 결과물**을 만드는 것
+
+이를 위해 Kotlin 컬렉션/함수형 API(`map`, `filter`, `groupBy`, `groupingBy`, `Sequence`, `runCatching` 등)를 활용하여
+데이터 전처리와 집계를 수행합니다.
+
+---
+
+## 2. 데이터 파일 위치 및 준비 방법
+
+### 2.1. 필요 데이터
+
+과제에서 제공한 COVID-19 Twitter 데이터셋을 사용합니다.
+
+- 대상 국가: `Australia`, `Brazil`, `India`, `Indonesia`, `Japan`
+- 기간: 2020년 3월 ~ 2022년 2월
+- 형식: 여러 개의 `.csv` 파일
+
+각 CSV 파일에는 대략 다음과 같은 컬럼들이 포함되어 있습니다.
+
+- 공통(또는 일부 국가에서만 존재)
+  - `created_at` : 트윗 작성 시각
+  - `text` 또는 `tweet` : 트윗 본문
+  - `user_location` : 사용자 위치
+- India 전용
+  - `sentiment_score` : 감성 점수
+  - `month` : `"Mar 25"` 와 같은 날짜 라벨
+
+### 2.2. 데이터 폴더 구성
+
+프로젝트 루트에 `data/` 폴더를 만들고, 그 안에 CSV 파일들을 넣습니다.
 
 ```text
 covid-twitter-analysis/
-  ├── src/
-  │   └── main/
-  │       └── kotlin/
-  │           └── Main.kt         # 메인 분석 코드
-  ├── build.gradle.kts            # Gradle 설정
-  ├── README.md                   # 이 파일
-  ├── analysis.md                 # 분석/구현 설명 (별도 작성)
-  └── data/                       # (제출 시에는 비워두거나 .gitignore 처리)
-      ├── Australia.csv
-      ├── Brazil.csv
-      ├── India.csv
-      ├── Indonesia.csv
-      ├── Japan.csv
-      └── output/                 # 프로그램 실행 후 생성되는 결과 CSV들
+  ├── data/
+  │   ├── Australia.csv
+  │   ├── Brazil.csv
+  │   ├── India.csv
+  │   ├── Indonesia.csv
+  │   └── Japan.csv
+  └── ...
 ```
 
-> ⚠ **제출용 Git 저장소에는 `data/` 폴더와 CSV 파일을 포함하지 않습니다.**  
-> (로컬에서만 데이터 파일을 두고 테스트합니다.)
+또는, 여러 개의 날짜/국가별 CSV가 섞여 있는 폴더를 그대로 사용해도 됩니다.  
+프로그램은 **루트 디렉터리 아래의 모든 `.csv` 파일을 자동으로 탐색**합니다.
+
+> ⚠ 단, 분석 결과를 기록하는 `data/output/` 폴더는 입력에서 제외되도록 되어 있습니다.  
+> (`output` 폴더에 생성된 CSV는 다시 읽지 않음)
 
 ---
 
-## 2. 사전 준비
+## 3. 프로젝트 실행 방법
 
-### 2.1. 필요 환경
+### 3.1. 환경 요구 사항
 
 - JDK 17 (또는 과제에서 지정한 JDK 버전)
 - Gradle 래퍼(`gradlew`) 사용 가능
-- (선택) IntelliJ IDEA / 기타 Kotlin 지원 IDE
+- IntelliJ IDEA (또는 Kotlin/Gradle을 지원하는 IDE, 선택사항)
 
-### 2.2. 데이터 준비
+### 3.2. Gradle로 실행 (권장)
 
-1. 과제에서 제공한 COVID-19 Twitter 데이터셋을 다운로드합니다.  
-   (예: `Australia.csv`, `Brazil.csv`, `India.csv`, `Indonesia.csv`, `Japan.csv` 5개 파일 등)
-
-2. 다음 두 가지 방식 중 하나로 사용합니다.
-
-#### A. 프로젝트 내부 `data/` 폴더 사용 (편한 방법)
-
-- 프로젝트 루트에 `data/` 폴더를 만들고, 그 안에 CSV 파일들을 넣습니다.
-
-  ```text
-  covid-twitter-analysis/
-    ├── data/
-    │   ├── Australia.csv
-    │   ├── Brazil.csv
-    │   ├── India.csv
-    │   ├── Indonesia.csv
-    │   └── Japan.csv
-    └── ...
-  ```
-
-- 실행 시에는 `data` 폴더를 인자로 넘깁니다.
-
-  ```bash
-  ./gradlew run --args="data"
-  ```
-
-#### B. 임의의 경로 사용
-
-- 데이터가 다른 위치에 있는 경우, 해당 경로를 그대로 인자로 넘깁니다.
-
-  ```bash
-  ./gradlew run --args="C:\path	o\covid-data"
-  ./gradlew run --args="/home/user/covid-data"
-  ```
-
-> 프로그램은 **폴더 내부의 모든 `.csv` 파일을 자동으로 탐색**하여 읽습니다.  
-> 단, 분석 결과를 저장하는 `output/` 폴더는 자동으로 제외됩니다.
-
----
-
-## 3. 실행 방법
-
-### 3.1. Gradle로 실행
-
-프로젝트 루트에서 아래 명령을 실행합니다.
+프로젝트 루트에서 다음 명령을 실행합니다.
 
 ```bash
-# Windows
+# Windows (PowerShell or CMD)
 gradlew run --args="data"
 
-# macOS / Linux
+# macOS / Linux / WSL
 ./gradlew run --args="data"
 ```
 
-- `data` 부분은 **데이터가 들어 있는 디렉터리 경로**입니다.
-- 올바른 경로가 아니면 `Data directory not found: ...` 메시지를 출력하고 종료합니다.
+- `data` 는 **데이터 CSV 파일들이 들어있는 디렉터리 경로**입니다.
+- 데이터가 다른 경로에 있을 경우:
 
-### 3.2. IntelliJ에서 실행
+```bash
+./gradlew run --args="/absolute/path/to/your/data"
+```
 
-1. `File → Open` 으로 프로젝트 폴더(`covid-twitter-analysis`)를 엽니다.
-2. Gradle 프로젝트로 인식되면 자동으로 설정이 로딩됩니다.
-3. `Run → Edit Configurations...` 에서
-    - Main class: `MainKt`
-    - Program arguments: `data` (또는 데이터 폴더 절대경로)
+경로가 잘못되면 프로그램은:
+
+```text
+Data directory not found: <경로>
+```
+
+메시지를 출력하고 종료합니다.
+
+### 3.3. IntelliJ IDEA에서 실행
+
+1. IntelliJ에서 `File → Open` 으로 `covid-twitter-analysis` 폴더를 엽니다.
+2. Gradle 프로젝트로 인식되면 자동으로 설정이 로드됩니다.
+3. `Run → Edit Configurations...` 에서:
+   - **Main class**: `MainKt`
+   - **Program arguments**: `data` (또는 데이터 폴더 절대경로)
 4. Run 버튼으로 실행합니다.
 
 ---
 
-## 4. 프로그램이 하는 일 (요약)
+## 4. 주요 실행 결과 (예시)
 
-### 4.1. 입력 데이터 처리
+제공된 과제 데이터셋을 기준으로, 프로그램을 실행했을 때의 **대표적인 집계 결과**는 다음과 같습니다.  
+(실제 숫자는 데이터셋 버전에 따라 조금 달라질 수 있습니다.)
 
-- 루트 폴더 아래의 모든 `.csv` 파일을 순회하며 트윗을 읽습니다.
-- `data/output/*.csv` 처럼 **프로그램이 생성한 결과 파일은 입력에서 제외**합니다.
-- 파일 이름에 `australia`, `brazil`, `india`, `indonesia`, `japan` 이 들어가는지 확인하여 **국가를 추론**합니다.
-- `Australia/Brazil/Indonesia/Japan` 파일들은 `kotlin-csv` 라이브러리로 읽습니다.
-- `India.csv`는 포맷이 불완전해서, **직접 문자열을 파싱하는 수동 파서**를 사용합니다.
-- 각 줄은 `Tweet` 도메인 객체로 변환됩니다.
+### 4.1. 전체 트윗 수
 
-```kotlin
-data class Tweet(
-    val country: String,
-    val createdAt: LocalDateTime?,
-    val text: String,
-    val userLocation: String?,
-    val sentimentScore: Double?,
-    val monthRaw: String?
-)
-```
+- 전체 트윗 수 (raw, 중복 포함): **약 1,615,653건**
+- 중복 제거 후 유니크 트윗 수: 약 160만 건  
+  (중복 제거 기준: `country + createdAt + monthRaw + text` 조합)
 
-### 4.2. 데이터 전처리
+### 4.2. 국가별 트윗 수 (Top 5)
 
-- **중복 트윗 제거**
-    - `country + createdAt + monthRaw + text` 조합으로 surrogate key를 만들어  
-      `distinctBy`로 중복 트윗을 제거합니다.
-- **텍스트 정제**
-    - HTML 엔티티(`&amp;`, `&lt;`, `&gt;`) 일부 변환
-    - URL 제거 (`https?://...`)
-    - 이모지 및 제어문자 제거
-    - 공백 정리 및 소문자 변환
-- **위치 정보 정제**
-    - `user_location` 컬럼에서 앞뒤 공백을 제거하고  
-      중복 공백을 하나로 줄인 문자열만 사용합니다. (빈 문자열은 `null` 처리)
+예시 실행 결과:
 
-### 4.3. 집계 내용
+- **Brazil** : 422,041
+- **Japan** : 414,948
+- **Australia** : 410,197
+- **Indonesia** : 229,935
+- **India** : 138,501
 
-프로그램은 다음과 같은 집계를 수행합니다.
+→ Brazil, Japan, Australia에서 COVID-19 관련 트윗이 특히 많이 수집되었음을 확인할 수 있습니다.
 
-1. **국가별 트윗 수**
+### 4.3. 월별 트윗 수 (Top 10)
 
-    - `tweets.groupingBy { it.country }.eachCount()`
+전 세계(5개국 전체)를 기준으로 한 월별 트윗 수 Top 10 예시는 다음과 같습니다.
 
-2. **월별 전체 트윗 수**
+1. 2021-12 : 598,697건  
+2. 2021-02 : 158,729건  
+3. 2021-03 : 152,423건  
+4. 2021-08 : 148,492건  
+5. 2022-01 : 92,700건  
+6. 2021-09 : 83,596건  
+7. 2021-11 : 67,025건  
+8. 2021-04 : 55,233건  
+9. 2021-05 : 35,627건  
+10. 2021-10 : 30,657건  
 
-    - `Tweet.monthKey()`를 기준으로 그룹:
-        - `createdAt`이 있는 경우: `YearMonth.from(createdAt)` → `"2021-12"`
-        - India처럼 `created_at`이 없는 경우: `monthRaw` 사용 (`"Mar 25"` 등)
-    - 전 세계(5개 국가 전체)를 기준으로 월별 트윗 수를 집계
+→ 2021년 12월, 2021년 초(2~3월), 2021년 8월에 트윗량이 크게 치솟는 패턴을 볼 수 있습니다.
 
-3. **국가 + 월별 트윗 수**
+### 4.4. 국가별 상위 해시태그 (Top 5, 예시)
 
-    - `(country, monthKey)` 쌍으로 그룹핑
-    - 국가별 트렌드를 시간축으로 비교할 수 있도록 집계
+각 국가별로 상위 5개 해시태그를 추출한 결과, 공통적으로:
 
-4. **국가별 상위 해시태그 Top 5**
+- `#covid19`
+- `#covid`
+- `#coronavirus`
 
-    - 정제된 텍스트에서 `#\w+` 패턴으로 해시태그를 추출
-    - 각 국가별로 자주 등장한 해시태그 상위 5개를 계산
+와 같은 태그가 상위권에 있으며, 국가별로는 다음과 같이 차이가 나타납니다.
 
-5. **India 감성 점수 분석**
+- **Australia** : `#auspol`, `#omicron` 등
+- **Brazil** : `#srilanka`, `#covid19sl` 등
+- **India** : `#corona`, `#lockdown` 등
+- **Indonesia** : `#indonesia`, `#jakpost` 등
+- **Japan** : `#taiwan`, `#vaccine` 등
 
-    - `India.csv`에만 있는 `sentiment_score` 컬럼을 사용
-    - India 트윗 중 `sentiment_score != null` 인 것만 사용
-    - `monthRaw`(예: `"Mar 25"`, `"Apr 01"`)를 기준으로 그룹
-    - `"Apr 01"`, `"Mar 25"` 형식(`^[A-Za-z]{3} \d{2}$`)인 라벨만 사용하여
-        - 각 날짜별 평균 감성 점수
-        - 각 날짜별 표본 개수
-    - 시간에 따른 감성 변화 라인 차트를 그릴 수 있는 형태로 정리
+이를 통해 국가별 논의 주제와 관심사가 어떻게 다른지 파악할 수 있습니다.
+
+### 4.5. India 감성 점수 (평균 및 시간 변화)
+
+`India.csv`에는 `sentiment_score` 컬럼이 존재하므로, 인도 트윗에 대해 감성 분석 결과를 활용할 수 있습니다.
+
+- India 평균 감성 점수 (전체): **약 0.379**
+
+또한 날짜 라벨(`"Mar 25"`, `"Apr 01"` 등)별로 평균 감성 점수와 표본 개수를 계산하여:
+
+- 날짜별 감성 변화 라인 그래프
+- 특정 시기(락다운 발표, 확진자 급증 시점 등)에 감성이 어떻게 변하는지 비교
+
+와 같은 시각화를 수행할 수 있습니다.
 
 ---
 
-## 5. 출력 형식
+## 5. 프로그램 내부 동작 및 결과 파일
 
-### 5.1. 콘솔 출력
+### 5.1. 내부 처리 요약
 
-프로그램 실행 시, 콘솔에는 대략 다음 내용이 출력됩니다.
+프로그램은 크게 다음 단계를 거칩니다.
 
-- 총 트윗 수 (raw / 중복 제거 후)
-- 국가별 상위 N개 트윗 수 (`TOP_COUNTRY_COUNT = 5`)
-- 월별 상위 N개 트윗 수 (`TOP_MONTH_COUNT = 10`)
-- 국가별 상위 해시태그 Top 5
-- 국가별 평균 감성 점수 (현재는 India만 대상)
-- India 날짜별 평균 감성 점수 (필터링된 라벨 기준)
-- 선택: `india_phrases.txt` 가 있을 경우, 상위 문구 분석
+1. **CSV 로딩**
+   - 루트 디렉터리 아래의 모든 `.csv` 파일을 재귀적으로 탐색하여 읽습니다.
+   - `data/output/` 폴더는 입력에서 제외됩니다.
+   - Australia/Brazil/Indonesia/Japan CSV는 `kotlin-csv` 라이브러리로 파싱합니다.
+   - India.csv는 여러 줄에 걸친 트윗, 깨진 따옴표 등으로 인해
+     일반 파서가 실패하여, **직접 문자열을 잘라서 파싱하는 수동 파서**를 사용합니다.
 
-### 5.2. 결과 CSV 파일
+2. **전처리**
+   - 모든 데이터를 `Tweet` 도메인 객체로 통일:
 
-실행 후 `data/output/` 폴더에 다음 CSV 파일들이 생성됩니다.
+     ```kotlin
+     data class Tweet(
+         val country: String,
+         val createdAt: LocalDateTime?,
+         val text: String,
+         val userLocation: String?,
+         val sentimentScore: Double?,
+         val monthRaw: String?
+     )
+     ```
+
+   - `identityKey`(country + createdAt + monthRaw + text)를 이용해 **중복 트윗 제거**
+   - `cleanText` 함수로 텍스트 정제:
+     - URL 제거
+     - HTML 엔티티(`&amp;`, `&lt;`, `&gt;`) 일부 변환
+     - 이모지/제어문자 제거
+   - `normalizeLocation` 함수로 위치 문자열 정리:
+     - 앞뒤 공백 제거
+     - 중복 공백을 한 칸으로 축소
+   - `monthKey()`를 통해 `"YYYY-MM"` 또는 원본 `monthRaw` 기반의 월 키 생성
+
+3. **집계**
+   - 국가별 트윗 수
+   - 월별 전체 트윗 수
+   - 국가 + 월별 트윗 수
+   - 국가별 상위 해시태그 Top 5
+   - India 감성 점수의 날짜별 평균(라벨 + 평균 + 표본 개수)
+
+### 5.2. 생성되는 결과 CSV 파일
+
+프로그램 실행 후, `data/output/` 폴더에 다음 CSV 파일들이 생성됩니다.
 
 1. `country_tweet_counts.csv`
 
    | column       | 설명                   |
-      |-------------|------------------------|
+   |-------------|------------------------|
    | country     | 국가 이름              |
    | tweet_count | 해당 국가의 트윗 수    |
-
-   → 국가별 트윗 수 막대 그래프에 사용.
 
 2. `month_tweet_counts.csv`
 
    | column       | 설명                         |
-      |-------------|------------------------------|
+   |-------------|------------------------------|
    | month       | `"YYYY-MM"` 형식 월 라벨     |
    | tweet_count | 해당 월의 전체 트윗 수       |
-
-   → 전체 월별 트윗 수 추이 라인 그래프에 사용.
 
 3. `country_month_tweet_counts.csv`
 
    | column       | 설명                                  |
-      |-------------|---------------------------------------|
+   |-------------|---------------------------------------|
    | country     | 국가 이름                             |
    | month       | 월 라벨 (`"YYYY-MM"` 또는 India 원본) |
    | tweet_count | 해당 국가+월의 트윗 수                |
 
-   → 국가별 트렌드(라인 그래프) 또는 heatmap 등에 사용.
-
 4. `hashtag_top5_by_country.csv`
 
    | column   | 설명                        |
-      |----------|-----------------------------|
+   |----------|-----------------------------|
    | country  | 국가 이름                   |
    | hashtag  | 해시태그 (예: `#covid19`)   |
    | count    | 해당 해시태그 등장 횟수     |
 
-   → 국가별로 어떤 이슈/프레임이 강조되는지 시각화할 때 사용.
-
 5. `india_sentiment_by_month.csv`
 
    | column           | 설명                                     |
-      |------------------|------------------------------------------|
+   |------------------|------------------------------------------|
    | month_label      | `"Mar 25"`, `"Apr 01"` 등 날짜 라벨      |
    | average_sentiment| 해당 날짜의 평균 감성 점수               |
    | tweet_count      | 해당 날짜에 사용된 표본 트윗 개수        |
 
-   → India 감성 변화 시계열 그래프에 사용.
+이 CSV 파일들을 엑셀이나 파이썬(pandas, matplotlib 등)으로 불러와서  
+막대그래프, 라인그래프, heatmap 등의 형태로 쉽게 시각화할 수 있습니다.
 
 ---
 
-## 6. 분석 및 그래프 활용 예시
+## 6. AI 도구(ChatGPT) 활용 방법
 
-생성된 CSV 파일들은 엑셀 또는 파이썬(pandas, matplotlib 등)으로 쉽게 시각화할 수 있습니다.
+이 프로젝트를 진행하면서 **AI 도구(ChatGPT)** 를 다음과 같이 활용했습니다.
 
-예를 들어:
+1. **과제 조건 해석 및 체크리스트 작성**
+   - PDF 과제 문서를 요약하고,
+   - “프로젝트 실행 방법, 데이터 파일 위치/준비, 주요 실행 결과, AI 도구 활용 방법” 등
+     README에 꼭 들어가야 할 항목들을 정리했습니다.
 
-- `country_tweet_counts.csv`  
-  → 국가별 트윗 수 막대 그래프
+2. **에러 분석 및 설계 보조**
+   - `CSVFieldNumDifferentException`, `CSVParseFormatException` 등 CSV 파싱 에러가 발생했을 때,
+     - 어떤 줄에서 포맷이 깨졌는지,
+     - India.csv처럼 형식이 불완전한 파일을 어떻게 우회할지
+     에 대한 아이디어를 얻었습니다.
 
-- `month_tweet_counts.csv`  
-  → 전체 트윗 수의 시간 추이 라인 그래프
+3. **India 전용 파서 설계**
+   - `id,tweet,sentiment_score,month` 구조에서,
+     - 왼쪽에서 첫 번째 콤마 → `id`
+     - 오른쪽에서 두 개의 콤마 → `sentiment`, `month`
+     - 나머지 가운데 전체 → `tweet`
+     와 같이 자르는 전략을 함께 논의했습니다.
 
-- `country_month_tweet_counts.csv`  
-  → 국가별 시간 추이 (multi-line chart 또는 heatmap)
+4. **전처리/집계 로직 구조화**
+   - 중복 제거용 `identityKey` 설계,
+   - 텍스트 정제 함수(`cleanText`)의 규칙(HTML 엔티티, URL, 이모지 처리 등),
+   - Kotlin 컬렉션/함수형 API 사용 패턴(`map`, `filter`, `groupBy`, `groupingBy`, `Sequence`, `runCatching`)을
+     깔끔하게 정리하는 데 도움을 받았습니다.
 
-- `india_sentiment_by_month.csv`  
-  → India 감성 점수의 시간 추이 라인 그래프
+5. **문서화(README.md, analysis.md) 구성**
+   - README에 어떤 섹션을 넣어야 과제 요구사항을 충족하는지,
+   - analysis.md에서 어떤 내용을 설명해야 “데이터 구조 이해 + 문제 해결 과정 + 설계 근거”를 잘 보여줄 수 있는지
+     구조를 잡을 때 AI 도구를 참고했습니다.
 
-이 그래프들을 보고서나 발표 자료에 그대로 사용할 수 있습니다.
+최종 코드는 이러한 아이디어를 바탕으로 직접 수정·실행·디버깅하면서 완성했습니다.
 
 ---
 
-## 7. AI 도구 활용 (선택 사항)
+## 7. 저장소 구성 및 제출 메모
 
-이 프로젝트를 진행하면서 **ChatGPT**를 다음과 같이 활용했습니다.
-
-- Kotlin/Gradle 프로젝트 구조를 잡을 때, `main(args)`로 인자를 받는 패턴을 확인
-- `kotlin-csv` 라이브러리 사용법 및 파싱 에러(`CSVFieldNumDifferentException`, `CSVParseFormatException`) 해결
-- `India.csv`처럼 형식이 깨진 CSV를 위한 **수동 파서(parseIndiaLine)** 설계
-- 중복 제거 전략(`identityKey`)과 텍스트 정제 함수(`cleanText`) 설계에 대한 아이디어 참고
-- 과제 PDF에 나와 있는 요구사항을 하나씩 대조하며, 어떤 집계를 코드로 구현할지 정리
-- 결과를 CSV로 내보내고, 추후 엑셀/파이썬으로 그래프를 그리는 워크플로 설계
-
-최종 설계와 구현은 위 요구사항에 맞추어 직접 수정·보완하면서 마무리했습니다.
+- GitHub 저장소에는 **코드와 문서만** 포함되어 있습니다.
+  - 포함:
+    - `src/`
+    - `build.gradle.kts`
+    - `settings.gradle.kts`
+    - `gradle/`, `gradlew`, `gradlew.bat`
+    - `README.md`
+    - `analysis.md`
+    - `.gitignore`
+  - 제외:
+    - `data/` 폴더 및 모든 `.csv` 데이터 파일
+- `data/`와 `*.csv` 는 `.gitignore`에 등록하여,  
+  과제 데이터셋이 외부에 업로드되지 않도록 했습니다.
 
 ---
 
 ## 8. 라이선스
 
-이 저장소는 과제 제출을 위한 코드로, 별도의 오픈소스 라이선스를 명시하지 않았습니다.  
+이 저장소는 수업 과제 제출을 위한 코드로, 별도의 오픈소스 라이선스를 명시하지 않았습니다.  
 필요 시 수업/과제 범위 내에서만 사용합니다.
